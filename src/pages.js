@@ -1,7 +1,7 @@
 // 前台各頁面與會員登入/註冊處理。
 import { BASE, CATEGORIES, REAL_CATEGORIES, categoryName, STATS, FEATURES, HIGHLIGHTS, PLANS, BLOG_CATEGORIES, blogCategoryName } from './config.js';
 import { layout, redirect, esc, eventCard, articleCard, sectionHead, empty } from './render.js';
-import { hashPassword, verifyPassword, isLegacyHash, createSession, destroySession, randomToken } from './auth.js';
+import { hashPassword, verifyPassword, isLegacyHash, createSession, destroySession, randomToken, cookie, parseCookies } from './auth.js';
 
 const PER_PAGE = 12;
 const EVENT_COLS = 'id, title, category, is_vip, date_text, city, price_m, price_f, image, summary, status';
@@ -407,9 +407,81 @@ export async function logout(env, req) {
   return redirect('/', [cookie]);
 }
 
-// Facebook 登入（尚未串接 FB OAuth，先導回首頁提示）
-export function fbLogin(env) {
-  return errorPage(env, 'Facebook 登入', 'Facebook 登入功能設定中，請先使用信箱註冊或登入。', '/', 'login');
+// ─── Facebook 登入（OAuth）────────────────────────────
+const FB_VER = 'v21.0';
+
+// 第一步：把使用者導去 Facebook 授權頁
+export function fbLogin(env, req, url) {
+  if (!env.FB_APP_ID) {
+    return errorPage(env, 'Facebook 登入', 'Facebook 登入尚未設定（缺少 FB_APP_ID），請先使用信箱登入或註冊。', '/', 'login');
+  }
+  const state = randomToken(16);
+  const redirectUri = `${url.origin}/user/fb_callback`;
+  const auth = `https://www.facebook.com/${FB_VER}/dialog/oauth?` + new URLSearchParams({
+    client_id: env.FB_APP_ID,
+    redirect_uri: redirectUri,
+    state,
+    response_type: 'code',
+    scope: 'public_profile,email',
+  }).toString();
+  return redirect(auth, [cookie('eros_fbstate', state, { maxAge: 600 })]);
+}
+
+// 第二步：Facebook 導回，換 token、取用戶、找/建會員、建立登入
+export async function fbCallback(env, req, url) {
+  const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state');
+  const saved = parseCookies(req)['eros_fbstate'];
+  if (url.searchParams.get('error')) {
+    return errorPage(env, 'Facebook 登入', '你取消了 Facebook 授權，或授權未完成。', '/', 'login');
+  }
+  if (!code || !state || state !== saved) {
+    return errorPage(env, 'Facebook 登入', '授權驗證失敗（state 不符），請再試一次。', '/', 'login');
+  }
+  const redirectUri = `${url.origin}/user/fb_callback`;
+  try {
+    // 換 access_token
+    const tokRes = await fetch(`https://graph.facebook.com/${FB_VER}/oauth/access_token?` + new URLSearchParams({
+      client_id: env.FB_APP_ID,
+      client_secret: env.FB_APP_SECRET,
+      redirect_uri: redirectUri,
+      code,
+    }).toString());
+    const tok = await tokRes.json();
+    if (!tok.access_token) return errorPage(env, 'Facebook 登入', '無法取得 Facebook 授權（token 失敗）。', '/', 'login');
+
+    // 取用戶資料
+    const meRes = await fetch(`https://graph.facebook.com/${FB_VER}/me?` + new URLSearchParams({
+      fields: 'id,name,email',
+      access_token: tok.access_token,
+    }).toString());
+    const me = await meRes.json();
+    if (!me.id) return errorPage(env, 'Facebook 登入', '無法取得 Facebook 帳號資料。', '/', 'login');
+
+    const fbId = String(me.id);
+    const email = (me.email || `fb_${fbId}@eros.ek21.com`).toLowerCase();
+    const now = Date.now();
+
+    // 先用 fb id 找，再用 email 找
+    let m = await first(env, `SELECT * FROM members WHERE fb_account=?1 LIMIT 1`, fbId);
+    if (!m) m = await first(env, `SELECT * FROM members WHERE email=?1 LIMIT 1`, email);
+
+    if (!m) {
+      const res = await env.DB.prepare(
+        `INSERT INTO members (email, name, fb_account, source, is_vip, status, created_at, updated_at)
+         VALUES (?1,?2,?3,'fb',0,1,?4,?4)`,
+      ).bind(email, me.name || 'Facebook 用戶', fbId, now).run();
+      m = { id: res.meta?.last_row_id };
+    } else if (!m.fb_account) {
+      // 既有 email 會員第一次用 FB 登入 → 綁定 fb id
+      try { await env.DB.prepare('UPDATE members SET fb_account=?1, updated_at=?2 WHERE id=?3').bind(fbId, now, m.id).run(); } catch { /* */ }
+    }
+
+    const c = await createSession(env, m.id, req.headers.get('user-agent') || '');
+    return redirect('/', [c, cookie('eros_fbstate', '', { maxAge: 0 })]);
+  } catch (e) {
+    return errorPage(env, 'Facebook 登入', 'Facebook 登入發生錯誤，請稍後再試或改用信箱登入。', '/', 'login');
+  }
 }
 
 // 簡單的訊息頁（含返回按鈕 + 自動開啟登入/註冊 modal）

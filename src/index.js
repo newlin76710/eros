@@ -2,7 +2,7 @@
 import { currentMember } from './auth.js';
 import {
   home, eventList, eventOne, eventJoin, wishPage, wishSubmit,
-  contactPage, conditionPage, login, register, logout, fbLogin,
+  contactPage, conditionPage, login, register, logout, fbLogin, fbCallback,
   articleList, articleOne,
 } from './pages.js';
 import { handleAdmin } from './admin.js';
@@ -29,7 +29,8 @@ export default {
       if (pathname === '/user/login' && method === 'POST') return await login(env, req);
       if (pathname === '/user/register' && method === 'POST') return await register(env, req);
       if (pathname === '/user/logout') return await logout(env, req);
-      if (pathname === '/user/fb_login') return fbLogin(env);
+      if (pathname === '/user/fb_login') return fbLogin(env, req, url);
+      if (pathname === '/user/fb_callback') return await fbCallback(env, req, url);
       if (pathname === '/user/condition') return conditionPage(env, await currentMember(req, env));
 
       // 目前登入會員（前台頁面需要）

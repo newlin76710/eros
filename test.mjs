@@ -142,5 +142,18 @@ ra = await req('POST','/admin/import?token=test-token',{json:{table:'articles',r
 ok('文章匯入 API', ra.status===200 && JSON.parse(ra.text).inserted===1, ra.text);
 
 
+// ── Facebook 登入導向 ──
+console.log('\nFacebook 登入：');
+env.FB_APP_ID='123456';
+{
+let rf = await req('GET','/user/fb_login',{useCookie:false});
+ok('fb_login 導向 facebook', rf.status===302 && rf.loc && rf.loc.startsWith('https://www.facebook.com/') && rf.loc.includes('client_id=123456'));
+ok('fb_login 設 state cookie', !!cookies['eros_fbstate']);
+let rc = await req('GET','/user/fb_callback?error=access_denied');
+ok('callback 取消授權有提示', rc.status===200 && rc.text.includes('取消'));
+rc = await req('GET','/user/fb_callback?code=x&state=badstate',{useCookie:false});
+ok('callback state 不符擋下', rc.text.includes('state 不符'));
+}
+
 console.log(`\n結果：${pass} 通過，${fail} 失敗`);
 process.exit(fail ? 1 : 0);
