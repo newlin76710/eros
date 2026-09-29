@@ -1,0 +1,19 @@
+{
+  "name": "eros",
+  "version": "1.0.0",
+  "private": true,
+  "description": "eros 主題派對 — 尋夢園旗下交友活動品牌，跑在 Cloudflare Workers + D1 的 serverless 網站",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init:local": "wrangler d1 execute eros --local --file=./schema.sql",
+    "db:init": "wrangler d1 execute eros --remote --file=./schema.sql",
+    "db:seed:local": "wrangler d1 execute eros --local --file=./seed.sql",
+    "db:seed": "wrangler d1 execute eros --remote --file=./seed.sql",
+    "test": "node test.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.143.0"
+  }
+}

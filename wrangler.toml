@@ -1,0 +1,30 @@
+name = "eros"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[vars]
+SITE_NAME = "eros 主題派對"
+SITE_TAGLINE = "意想不到的主題活動"
+# 對外的正式網址（用於 canonical、og:url、sitemap）
+SITE_URL = "https://eros.ek21.com"
+# 專題文章（部落格）外連網址，沿用原站
+BLOG_URL = "https://blog-eros.ek21.com"
+# 聯絡資訊
+CONTACT_EMAIL = "eros@ek21.com"
+CONTACT_LINE = "https://line.me/ti/p/R14gclYVUZ"
+CONTACT_FB = "https://www.facebook.com/erostp"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "eros"
+# 由 `npx wrangler d1 create eros` 建立後，把輸出的 database_id 貼在這裡
+database_id = "25b2e03f-f7ac-4649-885d-b9ab01102999"
+
+[observability]
+enabled = true
+
+# ADMIN_TOKEN（後台管理密碼）與 SESSION_SECRET（session 簽章金鑰）請用 secret 設定，勿寫在此檔：
+#   npx wrangler secret put ADMIN_TOKEN
+#   npx wrangler secret put SESSION_SECRET
+# 本機開發時放在 .dev.vars（見 .dev.vars.example）
