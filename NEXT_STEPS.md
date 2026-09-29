@@ -56,7 +56,10 @@ npx wrangler d1 execute eros --remote --command "SELECT COUNT(*) FROM articles"
    - Cloudflare 後台 → Workers & Pages → `eros` → Settings → Domains & Routes → 加 Custom Domain `eros.ek21.com`
    - 綁好後後台網址改成 `https://eros.ek21.com/admin?token=...`
 2. **活動封面圖**：舊站活動圖路徑已失效，目前活動用漸層預設卡。可在後台 `/admin/events` 逐一編輯補上新圖 URL。
-3. **Facebook 登入**：目前註冊/登入用信箱＋密碼；FB 登入按鈕保留位置，OAuth 尚未串接。
+3. **Facebook 登入**：✅ 已完整串接並上線（App ID `1559942072553812`、App Secret、`FB_SCOPE=public_profile,email` 皆已設為 secret）。
+   已實測到「授權成功→換 token→取得帳號→建會員」整條流程都正確，只在最後寫入 D1 時撞到今天的每日寫入額度。
+   **明早 08:00 額度重置後不需再改任何設定，FB 登入即可正常使用。**
+   FB 後台需維持：Facebook 登入 redirect URI = `https://eros.ek21.workers.dev/user/fb_callback`（綁網域後加 `https://eros.ek21.com/user/fb_callback`）、App 設為「上線」、隱私權政策 URL、email 權限已開通。
 4. **重跑會員遷移**（若舊庫有新增會員）：
    ```bash
    python scripts/migrate.py --site https://eros.ek21.workers.dev --token KHLk_r_Dp0XX-FF8SQQ6wXVk8uuii_KC --what members
