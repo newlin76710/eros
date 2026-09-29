@@ -422,7 +422,9 @@ export function fbLogin(env, req, url) {
     redirect_uri: redirectUri,
     state,
     response_type: 'code',
-    scope: 'public_profile,email',
+    // email 需在 FB 後台「權限與功能」開通存取權，未開通帶 email 會被判 Invalid Scopes。
+    // 開通後把 FB_SCOPE 設為 "public_profile,email" 即可。
+    scope: env.FB_SCOPE || 'public_profile',
   }).toString();
   return redirect(auth, [cookie('eros_fbstate', state, { maxAge: 600 })]);
 }
@@ -448,15 +450,22 @@ export async function fbCallback(env, req, url) {
       code,
     }).toString());
     const tok = await tokRes.json();
-    if (!tok.access_token) return errorPage(env, 'Facebook 登入', '無法取得 Facebook 授權（token 失敗）。', '/', 'login');
+    if (!tok.access_token) {
+      const d = tok.error ? (tok.error.message || JSON.stringify(tok.error)) : JSON.stringify(tok);
+      return errorPage(env, 'Facebook 登入', 'token 失敗：' + d, '/', 'login');
+    }
 
-    // 取用戶資料
+    // 取用戶資料（只取有開通的欄位；email 未開通時不要求，避免報錯）
+    const fields = (env.FB_SCOPE || '').includes('email') ? 'id,name,email' : 'id,name';
     const meRes = await fetch(`https://graph.facebook.com/${FB_VER}/me?` + new URLSearchParams({
-      fields: 'id,name,email',
+      fields,
       access_token: tok.access_token,
     }).toString());
     const me = await meRes.json();
-    if (!me.id) return errorPage(env, 'Facebook 登入', '無法取得 Facebook 帳號資料。', '/', 'login');
+    if (!me.id) {
+      const d = me.error ? (me.error.message || JSON.stringify(me.error)) : JSON.stringify(me);
+      return errorPage(env, 'Facebook 登入', '取得帳號資料失敗：' + d, '/', 'login');
+    }
 
     const fbId = String(me.id);
     const email = (me.email || `fb_${fbId}@eros.ek21.com`).toLowerCase();
@@ -480,7 +489,7 @@ export async function fbCallback(env, req, url) {
     const c = await createSession(env, m.id, req.headers.get('user-agent') || '');
     return redirect('/', [c, cookie('eros_fbstate', '', { maxAge: 0 })]);
   } catch (e) {
-    return errorPage(env, 'Facebook 登入', 'Facebook 登入發生錯誤，請稍後再試或改用信箱登入。', '/', 'login');
+    return errorPage(env, 'Facebook 登入', '錯誤：' + (e && e.message ? e.message : String(e)), '/', 'login');
   }
 }
 
