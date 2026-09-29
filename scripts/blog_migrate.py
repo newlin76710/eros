@@ -43,6 +43,12 @@ def download_image(url):
         return None
     if url in img_cache:
         return img_cache[url]
+    # 檔名由 URL 決定；若本機已下載過就直接沿用，不重抓（可重跑而不重載 1327 張圖）
+    base = hashlib.md5(url.encode("utf-8")).hexdigest()[:16]
+    for ex in (".jpg", ".png", ".gif", ".webp"):
+        if os.path.exists(os.path.join(MEDIA_DIR, base + ex)):
+            img_cache[url] = "/media/blog/" + base + ex
+            return img_cache[url]
     try:
         r = session.get(url, timeout=25)
         ct = r.headers.get("content-type", "")
