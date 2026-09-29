@@ -52,3 +52,22 @@ export const PLANS = [
 ];
 
 export const SESSION_DAYS = 30; // 登入 cookie 有效天數
+
+// 專題文章分類（對應原 blog-eros.ek21.com 的 WordPress 分類，slug 自訂、名稱沿用）
+export const BLOG_CATEGORIES = [
+  { slug: 'loveblog', name: '專欄文章' },
+  { slug: 'news', name: '媒體報導' },
+  { slug: 'selected', name: '小編精選' },
+  { slug: 'couple', name: '兩性情感' },
+  { slug: 'random', name: '心理測驗' },
+  { slug: 'fashion', name: '時尚穿搭' },
+  { slug: 'makeupdiet', name: '美妝瘦身' },
+  { slug: 'travel', name: '旅遊分享' },
+  { slug: 'foodrecipe', name: '美食食譜' },
+  { slug: 'diy', name: 'DIY手作' },
+  { slug: 'health', name: '健康養身' },
+  { slug: 'blooper', name: '精彩花絮' },
+  { slug: 'hot', name: '熱門話題' },
+];
+export const BLOG_CATEGORY_MAP = Object.fromEntries(BLOG_CATEGORIES.map((c) => [c.slug, c]));
+export const blogCategoryName = (slug) => BLOG_CATEGORY_MAP[slug]?.name || '專欄文章';

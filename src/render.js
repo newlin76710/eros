@@ -24,6 +24,23 @@ export function eventCard(e) {
   </article>`;
 }
 
+// 專題文章卡片
+export function articleCard(a) {
+  const href = `/article/${a.id}`;
+  const img = a.cover
+    ? `<img src="${esc(a.cover)}" alt="${esc(a.title)}" loading="lazy" decoding="async" onerror="this.remove()">`
+    : `<span class="ph">eros</span>`;
+  const d = a.published_at ? new Date(a.published_at).toLocaleDateString('zh-TW') : '';
+  return `<article class="acard">
+    <a class="acard-img" href="${href}">${img}${a.catName ? `<span class="cat">${esc(a.catName)}</span>` : ''}</a>
+    <div class="acard-body">
+      <h3><a href="${href}">${esc(a.title)}</a></h3>
+      ${a.excerpt ? `<p>${esc(a.excerpt)}</p>` : ''}
+      <time>${d}</time>
+    </div>
+  </article>`;
+}
+
 export const sectionHead = (title, sub = '') =>
   `<div class="shead"><h2>${esc(title)}</h2>${sub ? `<p>${esc(sub)}</p>` : ''}</div>`;
 
@@ -88,6 +105,31 @@ section.blk{padding:64px 0}
 .ecard-body p{margin:0;color:var(--sub);font-size:14.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .ecard-meta{margin-top:auto;display:flex;flex-wrap:wrap;gap:10px;font-size:14px;color:var(--sub);align-items:center}
 .ecard-meta .price{margin-left:auto;color:var(--pink);font-weight:800}
+/* 文章卡片格 */
+.agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.acard{background:var(--card);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column;transition:transform .18s}
+.acard:hover{transform:translateY(-4px)}
+.acard-img{position:relative;display:block;aspect-ratio:16/10;background:linear-gradient(135deg,var(--pink),var(--pink2));overflow:hidden}
+.acard-img img{width:100%;height:100%;object-fit:cover;transition:transform .4s}
+.acard:hover .acard-img img{transform:scale(1.05)}
+.acard-img .ph{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:30px;font-weight:900;letter-spacing:3px;opacity:.85}
+.acard-img .cat{position:absolute;left:12px;top:12px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;padding:3px 11px;border-radius:999px}
+.acard-body{padding:15px 17px 17px;display:flex;flex-direction:column;gap:7px;flex:1}
+.acard-body h3{margin:0;font-size:18px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.acard-body p{margin:0;color:var(--sub);font-size:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.acard-body time{margin-top:auto;color:var(--sub);font-size:13px}
+/* 文章內頁 */
+.article-page{max-width:820px;margin:0 auto;background:var(--card);border-radius:16px;padding:34px;box-shadow:var(--shadow)}
+.article-page .a-cat{color:var(--pink);font-weight:700;font-size:14px}
+.article-page h1{font-size:30px;line-height:1.4;margin:8px 0 10px}
+.article-page .a-meta{color:var(--sub);font-size:14px;margin-bottom:20px;border-bottom:1px solid var(--line);padding-bottom:16px}
+.article-page .a-cover{border-radius:12px;overflow:hidden;margin:0 0 22px}
+.article-page .a-content{font-size:17px;line-height:2;overflow-wrap:anywhere}
+.article-page .a-content img{border-radius:10px;margin:16px auto;height:auto}
+.article-page .a-content p{margin:0 0 1.1em}
+.article-page .a-content h2,.article-page .a-content h3{line-height:1.5;margin:1.4em 0 .5em}
+.article-page .a-content iframe{max-width:100%;border-radius:10px}
+.article-back{display:block;text-align:center;margin:30px 0 0}
 /* 篩選列 */
 .filter{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:32px}
 .filter a{padding:8px 20px;border-radius:999px;border:1.5px solid var(--line);color:var(--sub);font-weight:600}
@@ -186,7 +228,7 @@ dialog::backdrop{background:rgba(20,8,16,.55);backdrop-filter:blur(3px)}
 function navbar(env, active, member) {
   const items = [
     ['/event', '主題活動', 'event'],
-    [env.BLOG_URL || '#', '專題文章', 'blog'],
+    ['/article', '專題文章', 'article'],
     ['/wish', '活動許願池', 'wish'],
     ['/contact', '聯絡我們', 'contact'],
   ];
@@ -212,7 +254,7 @@ function modals(env, member) {
     return `<dialog id="m-nav"><div class="modal"><button class="x" onclick="this.closest('dialog').close()">×</button>
       <h2 style="font-size:20px">選單</h2>
       <nav style="display:flex;flex-direction:column;gap:14px;margin-top:18px;font-weight:600">
-        <a href="/event">主題活動</a><a href="${env.BLOG_URL || '#'}">專題文章</a>
+        <a href="/event">主題活動</a><a href="/article">專題文章</a>
         <a href="/wish">活動許願池</a><a href="/contact">聯絡我們</a><a href="/user/logout">登出</a>
       </nav></div></dialog>`;
   }
@@ -249,7 +291,7 @@ function modals(env, member) {
   <dialog id="m-nav"><div class="modal"><button class="x" onclick="this.closest('dialog').close()">×</button>
     <h2 style="font-size:20px">選單</h2>
     <nav style="display:flex;flex-direction:column;gap:14px;margin-top:18px;font-weight:600">
-      <a href="/event">主題活動</a><a href="${env.BLOG_URL || '#'}">專題文章</a>
+      <a href="/event">主題活動</a><a href="/article">專題文章</a>
       <a href="/wish">活動許願池</a><a href="/contact">聯絡我們</a>
       <a href="#" onclick="document.getElementById('m-nav').close();eros.open('login');return false">登入 / 註冊</a>
     </nav></div></dialog>

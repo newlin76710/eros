@@ -112,3 +112,23 @@ CREATE TABLE IF NOT EXISTS wishes (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_wishes_created ON wishes (created_at DESC);
+
+-- ─── 專題文章（部落格）─────────────────────────────────
+-- 由 blog-eros.ek21.com 匯入；圖片下載存本站 Static Assets（/media/blog/…），內文不外連。
+CREATE TABLE IF NOT EXISTS articles (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  legacy_id    INTEGER,                          -- 原 WordPress post id
+  title        TEXT NOT NULL,
+  category     TEXT NOT NULL DEFAULT 'loveblog', -- 對應 config BLOG_CATEGORIES 的 slug
+  excerpt      TEXT,
+  content      TEXT,                             -- 內文 HTML（圖片已改寫為本站路徑）
+  cover        TEXT,                             -- 封面圖本站路徑
+  published_at INTEGER,
+  views        INTEGER NOT NULL DEFAULT 0,
+  status       INTEGER NOT NULL DEFAULT 1,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_articles_pub    ON articles (status, published_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_articles_cat    ON articles (category, status, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_articles_legacy ON articles (legacy_id);

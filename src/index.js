@@ -3,6 +3,7 @@ import { currentMember } from './auth.js';
 import {
   home, eventList, eventOne, eventJoin, wishPage, wishSubmit,
   contactPage, conditionPage, login, register, logout, fbLogin,
+  articleList, articleOne,
 } from './pages.js';
 import { handleAdmin } from './admin.js';
 
@@ -43,6 +44,10 @@ export default {
 
       if (pathname === '/event/join' && method === 'POST') return await eventJoin(env, req, member);
 
+      if (pathname === '/article') return await articleList(env, url, member);
+      const art = pathname.match(/^\/article\/(\d+)$/);
+      if (art) return await articleOne(env, parseInt(art[1], 10), member);
+
       if (pathname === '/wish' && method === 'POST') return await wishSubmit(env, req, member);
       if (pathname === '/wish') return await wishPage(env, url, member);
 
@@ -63,9 +68,14 @@ async function sitemap(env) {
   try {
     ids = (await env.DB.prepare('SELECT id FROM events WHERE status=1 ORDER BY id DESC LIMIT 1000').all()).results;
   } catch { /* */ }
-  const urls = ['/', '/event', '/wish', '/contact', '/user/condition']
+  let artIds = [];
+  try {
+    artIds = (await env.DB.prepare('SELECT id FROM articles WHERE status=1 ORDER BY id DESC LIMIT 2000').all()).results;
+  } catch { /* */ }
+  const urls = ['/', '/event', '/article', '/wish', '/contact', '/user/condition']
     .map((p) => `<url><loc>${base}${p}</loc></url>`)
     .concat(ids.map((e) => `<url><loc>${base}/event/one/${e.id}</loc></url>`))
+    .concat(artIds.map((a) => `<url><loc>${base}/article/${a.id}</loc></url>`))
     .join('');
   return new Response(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`, {
     headers: { 'content-type': 'application/xml; charset=utf-8' },

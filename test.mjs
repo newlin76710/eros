@@ -129,5 +129,18 @@ ok('匯入資料進 DB', db.prepare('SELECT COUNT(*) n FROM members WHERE email=
 r = await req('POST', '/admin/import?token=test-token', { json: { table: 'events', rows: [{ legacy_id: 100, title: '匯入活動', category: 'game', status: 1 }], truncate: false }, useCookie: false });
 ok('活動匯入成功', r.status === 200 && JSON.parse(r.text).inserted === 1, r.text);
 
+// ── 專題文章 ──
+console.log('\n專題文章：');
+db.prepare(`INSERT INTO articles (legacy_id,title,category,excerpt,content,cover,published_at,status,created_at,updated_at) VALUES (11,'測試好文','loveblog','摘要','<p>內文<img src="/media/blog/x.jpg"></p>','/media/blog/c.jpg',1700000000000,1,0,0)`).run();
+let ra = await req('GET','/article');
+ok('文章列表 200 且顯示標題', ra.status===200 && ra.text.includes('測試好文') && ra.text.includes('專欄文章'));
+ra = await req('GET','/article/'+db.prepare('SELECT id FROM articles LIMIT 1').get().id);
+ok('文章內頁 200 顯示內文', ra.status===200 && ra.text.includes('/media/blog/x.jpg'));
+ra = await req('GET','/article?cat=news');
+ok('文章分類篩選', ra.status===200 && !ra.text.includes('測試好文'));
+ra = await req('POST','/admin/import?token=test-token',{json:{table:'articles',rows:[{legacy_id:22,title:'匯入文','category:':'news',category:'news',status:1,content:'<p>hi</p>'}]},useCookie:false});
+ok('文章匯入 API', ra.status===200 && JSON.parse(ra.text).inserted===1, ra.text);
+
+
 console.log(`\n結果：${pass} 通過，${fail} 失敗`);
 process.exit(fail ? 1 : 0);

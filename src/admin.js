@@ -51,11 +51,13 @@ const need = () => new Response('需要有效的 admin token：/admin?token=你�
 // ─── 匯入 API 的欄位白名單 ─────────────────────────────
 const MEMBER_COLS = ['legacy_id', 'email', 'name', 'phone', 'password_hash', 'fb_account', 'gender', 'birth', 'city', 'zone', 'address', 'education', 'job_category', 'job_title', 'height', 'weight', 'intro', 'avatar', 'source', 'location', 'contact_status', 'is_vip', 'status', 'created_at', 'updated_at'];
 const EVENT_COLS = ['legacy_id', 'title', 'category', 'is_vip', 'date_text', 'event_date', 'time_text', 'city', 'address', 'price_m', 'price_f', 'limit_m', 'limit_f', 'summary', 'intro', 'schedule', 'notice', 'notice2', 'image', 'images', 'video', 'status', 'created_at', 'updated_at'];
+const ARTICLE_COLS = ['legacy_id', 'title', 'category', 'excerpt', 'content', 'cover', 'published_at', 'status', 'created_at', 'updated_at'];
+const COLS_BY_TABLE = { members: MEMBER_COLS, events: EVENT_COLS, articles: ARTICLE_COLS };
 
 async function importRows(env, table, rows) {
   const now = Date.now();
-  const cols = table === 'members' ? MEMBER_COLS : EVENT_COLS;
-  const orIgnore = table === 'members'; // members 以 email unique 擋重複；events 事前 truncate
+  const cols = COLS_BY_TABLE[table];
+  const orIgnore = table === 'members'; // members 以 email unique 擋重複；events/articles 事前 truncate
   const stmts = [];
   for (const r of rows) {
     const use = cols.filter((c) => r[c] !== undefined);
@@ -83,7 +85,7 @@ export async function handleAdmin(env, req, url) {
     let payload;
     try { payload = await req.json(); } catch { return json({ error: 'invalid json' }, 400); }
     const { table, rows, truncate } = payload || {};
-    if (!['members', 'events'].includes(table) || !Array.isArray(rows)) return json({ error: 'need {table:members|events, rows:[]}' }, 400);
+    if (!['members', 'events', 'articles'].includes(table) || !Array.isArray(rows)) return json({ error: 'need {table:members|events|articles, rows:[]}' }, 400);
     try {
       if (truncate) await env.DB.prepare(`DELETE FROM ${table}`).run();
       const n = await importRows(env, table, rows);
@@ -226,15 +228,17 @@ export async function handleAdmin(env, req, url) {
 
   // 儀表板
   const safe = async (sql) => { try { return (await first(env, sql))?.n || 0; } catch { return 0; } };
-  const [nm, ne, nr, nw] = await Promise.all([
+  const [nm, ne, na, nr, nw] = await Promise.all([
     safe('SELECT COUNT(*) n FROM members'),
     safe('SELECT COUNT(*) n FROM events'),
+    safe('SELECT COUNT(*) n FROM articles'),
     safe('SELECT COUNT(*) n FROM registrations'),
     safe('SELECT COUNT(*) n FROM wishes'),
   ]);
   const body = `<div class="cards">
       <div class="c"><b>${nm.toLocaleString()}</b><span>會員</span></div>
       <div class="c"><b>${ne.toLocaleString()}</b><span>活動</span></div>
+      <div class="c"><b>${na.toLocaleString()}</b><span>專題文章</span></div>
       <div class="c"><b>${nr.toLocaleString()}</b><span>報名</span></div>
       <div class="c"><b>${nw.toLocaleString()}</b><span>許願</span></div>
     </div>

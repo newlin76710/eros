@@ -15,6 +15,11 @@ CONTACT_EMAIL = "eros@ek21.com"
 CONTACT_LINE = "https://line.me/ti/p/R14gclYVUZ"
 CONTACT_FB = "https://www.facebook.com/erostp"
 
+[assets]
+# 專題文章的圖片下載後存在這裡，隨部署上傳，網址為 /media/blog/…
+directory = "./public"
+binding = "ASSETS"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "eros"

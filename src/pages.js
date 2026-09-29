@@ -1,6 +1,6 @@
 // 前台各頁面與會員登入/註冊處理。
-import { BASE, CATEGORIES, REAL_CATEGORIES, categoryName, STATS, FEATURES, HIGHLIGHTS, PLANS } from './config.js';
-import { layout, redirect, esc, eventCard, sectionHead, empty } from './render.js';
+import { BASE, CATEGORIES, REAL_CATEGORIES, categoryName, STATS, FEATURES, HIGHLIGHTS, PLANS, BLOG_CATEGORIES, blogCategoryName } from './config.js';
+import { layout, redirect, esc, eventCard, articleCard, sectionHead, empty } from './render.js';
 import { hashPassword, verifyPassword, isLegacyHash, createSession, destroySession, randomToken } from './auth.js';
 
 const PER_PAGE = 12;
@@ -21,6 +21,11 @@ export async function home(env, member) {
   try {
     events = await all(env, `SELECT ${EVENT_COLS} FROM events WHERE status=1 ORDER BY event_date DESC, id DESC LIMIT 6`);
   } catch { /* 資料表尚未建立時首頁仍可顯示 */ }
+  let articles = [];
+  try {
+    articles = (await all(env, `SELECT ${ART_COLS} FROM articles WHERE status=1 ORDER BY published_at DESC, id DESC LIMIT 3`))
+      .map((a) => ({ ...a, catName: blogCategoryName(a.category) }));
+  } catch { /* */ }
 
   const stats = STATS.map((s) => `<div class="stat"><b>${s.value.toLocaleString()}</b><span>${s.label}</span></div>`).join('');
   const feats = FEATURES.map((f, i) => `<div class="feat"><div class="ic">${['🎉', '💄', '🤝'][i] || '✨'}</div><h3>${esc(f.title)}</h3><p>${esc(f.text)}</p></div>`).join('');
@@ -64,7 +69,13 @@ export async function home(env, member) {
     <div class="media">${media}</div>
   </div></section>
 
-  <section class="blk"><div class="wrap">
+  ${articles.length ? `<section class="blk"><div class="wrap">
+    ${sectionHead('最新專題文章', '戀愛講座、兩性情感與精選好文')}
+    <div class="agrid">${articles.map(articleCard).join('')}</div>
+    <div style="text-align:center;margin-top:30px"><a class="btn ghost" href="/article">看更多文章</a></div>
+  </div></section>` : ''}
+
+  <section class="blk soft"><div class="wrap">
     ${sectionHead('選擇最適合你的方式')}
     <div class="plans">${plans}</div>
   </div></section>
@@ -223,6 +234,84 @@ export async function wishSubmit(env, req, member) {
     ).bind(member?.id || null, name || null, email || null, content.slice(0, 500), Date.now()).run();
   } catch { /* */ }
   return redirect('/wish?ok=1');
+}
+
+// ─── 專題文章 ───────────────────────────────────────────
+const ART_COLS = 'id, title, category, excerpt, cover, published_at';
+const ARTS_PER = 12;
+
+export async function articleList(env, url, member) {
+  const cat = url.searchParams.get('cat') || 'all';
+  const page = pageNum(url);
+  const valid = BLOG_CATEGORIES.some((c) => c.slug === cat) ? cat : 'all';
+  const where = valid === 'all' ? 'status=1' : 'status=1 AND category=?1';
+  const args = valid === 'all' ? [] : [valid];
+
+  let rows = [];
+  try {
+    rows = await all(
+      env,
+      `SELECT ${ART_COLS} FROM articles WHERE ${where} ORDER BY published_at DESC, id DESC LIMIT ?${args.length + 1} OFFSET ?${args.length + 2}`,
+      ...args, ARTS_PER + 1, (page - 1) * ARTS_PER,
+    );
+  } catch { /* 尚未建表 */ }
+  const hasMore = rows.length > ARTS_PER;
+  rows = rows.slice(0, ARTS_PER).map((a) => ({ ...a, catName: blogCategoryName(a.category) }));
+
+  const filter = [['all', '全部文章'], ...BLOG_CATEGORIES.map((c) => [c.slug, c.name])]
+    .map(([slug, name]) => `<a href="/article?cat=${slug}"${slug === valid ? ' class="on"' : ''}>${name}</a>`).join('');
+  const grid = rows.length ? `<div class="agrid">${rows.map(articleCard).join('')}</div>` : empty('這個分類還沒有文章。');
+  const mk = (p) => `/article?cat=${valid}&page=${p}`;
+  const pager = (page > 1 || hasMore)
+    ? `<nav class="pager">${page > 1 ? `<a href="${mk(page - 1)}">‹ 上一頁</a>` : ''}${hasMore ? `<a href="${mk(page + 1)}">下一頁 ›</a>` : ''}</nav>`
+    : '';
+
+  const body = `
+  <section class="phead"><h1>專題文章</h1><p>戀愛講座、兩性情感、活動花絮與精選好文，都在這裡</p></section>
+  <section class="blk"><div class="wrap">
+    <div class="filter">${filter}</div>
+    ${grid}
+    ${pager}
+  </div></section>`;
+  return layout(env, { title: '專題文章', body, active: 'article', member });
+}
+
+export async function articleOne(env, id, member) {
+  let a = null;
+  try { a = await first(env, `SELECT * FROM articles WHERE id=?1 AND status=1`, id); } catch { /* */ }
+  if (!a) {
+    return layout(env, {
+      title: '找不到文章', status: 404, member,
+      body: `<section class="blk"><div class="wrap">${empty('找不到這篇文章。')}<div style="text-align:center;margin-top:24px"><a class="btn" href="/article">回文章列表</a></div></div></section>`,
+    });
+  }
+  try { await env.DB.prepare('UPDATE articles SET views=views+1 WHERE id=?1').bind(id).run(); } catch { /* */ }
+
+  const d = a.published_at ? new Date(a.published_at).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+  const cover = a.cover ? `<div class="a-cover"><img src="${esc(a.cover)}" alt="${esc(a.title)}" onerror="this.parentElement.remove()"></div>` : '';
+  // 相關文章（同分類）
+  let related = [];
+  try {
+    related = (await all(env, `SELECT ${ART_COLS} FROM articles WHERE status=1 AND category=?1 AND id<>?2 ORDER BY published_at DESC LIMIT 3`, a.category, id))
+      .map((x) => ({ ...x, catName: blogCategoryName(x.category) }));
+  } catch { /* */ }
+  const relHtml = related.length
+    ? `<section class="blk soft"><div class="wrap">${sectionHead('相關文章')}<div class="agrid">${related.map(articleCard).join('')}</div></div></section>`
+    : '';
+
+  const body = `
+  <section class="blk"><div class="wrap">
+    <article class="article-page">
+      <div class="a-cat">${esc(blogCategoryName(a.category))}</div>
+      <h1>${esc(a.title)}</h1>
+      <div class="a-meta">${d}</div>
+      ${cover}
+      <div class="a-content">${a.content || `<p>${esc(a.excerpt || '')}</p>`}</div>
+    </article>
+    <div class="article-back"><a class="btn ghost" href="/article">← 回專題文章</a></div>
+  </div></section>
+  ${relHtml}`;
+  return layout(env, { title: a.title, description: a.excerpt || a.title, body, active: 'article', member });
 }
 
 // ─── 聯絡我們 / 條款 ────────────────────────────────────
