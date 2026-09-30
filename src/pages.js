@@ -126,7 +126,7 @@ export async function eventList(env, url, member) {
 }
 
 // ─── 活動詳情 ───────────────────────────────────────────
-export async function eventOne(env, id, member) {
+export async function eventOne(env, id, member, url) {
   let e = null;
   try { e = await first(env, `SELECT * FROM events WHERE id=?1 AND status=1`, id); } catch { /* */ }
   if (!e) {
@@ -145,6 +145,30 @@ export async function eventOne(env, id, member) {
     : '免費';
   const tags = [categoryName(e.category), e.is_vip ? 'VIP 限定' : null].filter(Boolean)
     .map((t) => `<span>${esc(t)}</span>`).join('');
+  // 會員是否已報名
+  let joined = null;
+  if (member) {
+    try { joined = await first(env, 'SELECT id FROM registrations WHERE event_id=?1 AND member_id=?2 AND status=1', id, member.id); } catch { /* */ }
+  }
+  const flag = url?.searchParams.get('joined');
+  const flash = flag === '1' ? '<div class="msg ok">🎉 報名成功！eros 戀愛秘書將盡快與您聯繫。</div>'
+    : flag === 'dup' ? '<div class="msg ok">你已經報名過這個活動囉！</div>'
+    : flag === 'cancel' ? '<div class="msg err">已取消報名。</div>' : '';
+  const bookForm = joined
+    ? `<div class="msg ok" style="text-align:center;margin:0 0 12px">✅ 你已報名此活動</div>
+          <form method="post" action="/event/cancel" onsubmit="return confirm('確定要取消報名嗎？')">
+            <input type="hidden" name="event_id" value="${e.id}">
+            <button class="btn ghost" style="width:100%">取消報名</button>
+          </form>`
+    : `<form method="post" action="/event/join">
+            <input type="hidden" name="event_id" value="${e.id}">
+            ${member ? `<p style="margin:0 0 10px;font-size:14px;color:var(--sub)">以 <b style="color:var(--ink)">${esc(member.name || member.email)}</b> 的身分報名</p>` : `
+            <input type="text" name="name" placeholder="姓名" required>
+            <input type="tel" name="phone" placeholder="手機號碼" required style="margin-top:8px">
+            <input type="email" name="email" placeholder="信箱" required style="margin-top:8px">`}
+            <button class="btn">${member ? '立即報名' : '填資料報名'}</button>
+          </form>
+          ${member ? '' : `<p style="font-size:13px;margin:10px 0 0;text-align:center"><a href="#login" onclick="eros.open('login');return false" style="color:var(--pink)">已是會員？登入後一鍵報名</a></p>`}`;
   const content = [e.intro, e.schedule, e.notice, e.notice2].filter(Boolean).join('<hr style="margin:22px 0;border:0;border-top:1px solid var(--line)">');
 
   const body = `
@@ -160,20 +184,14 @@ export async function eventOne(env, id, member) {
       </div>
       <aside>
         <div class="side-book">
+          ${flash}
           <p class="price">${price}</p>
           <dl>
             ${e.city ? `<dt>地點</dt><dd>${esc(e.city)}</dd>` : ''}
             ${e.date_text ? `<dt>時間</dt><dd>${esc(e.date_text)}${e.time_text ? ' ' + esc(e.time_text) : ''}</dd>` : ''}
             <dt>分類</dt><dd>${esc(categoryName(e.category))}</dd>
           </dl>
-          <form method="post" action="/event/join">
-            <input type="hidden" name="event_id" value="${e.id}">
-            ${member ? '' : `
-            <input type="text" name="name" placeholder="姓名" required>
-            <input type="tel" name="phone" placeholder="手機號碼" required style="margin-top:8px">
-            <input type="email" name="email" placeholder="信箱" required style="margin-top:8px">`}
-            <button class="btn">${member ? '立即報名' : '填資料報名'}</button>
-          </form>
+          ${bookForm}
           <p style="font-size:13px;color:var(--sub);margin:12px 0 0">報名成功後，eros 戀愛秘書將與您聯繫安排活動。</p>
         </div>
       </aside>
@@ -190,6 +208,14 @@ export async function eventJoin(env, req, member) {
   const name = member ? member.name : (form.get('name') || '').trim();
   const email = member ? member.email : (form.get('email') || '').trim();
   const phone = member ? member.phone : (form.get('phone') || '').trim();
+  if (!member && (!name || !email)) return redirect(`/event/one/${eventId}`);
+  // 同一人同一活動不重複報名（會員看 member_id，訪客看 email）
+  try {
+    const dup = member
+      ? await first(env, 'SELECT id FROM registrations WHERE event_id=?1 AND member_id=?2 AND status=1', eventId, member.id)
+      : await first(env, 'SELECT id FROM registrations WHERE event_id=?1 AND email=?2 AND status=1', eventId, email);
+    if (dup) return redirect(`/event/one/${eventId}?joined=dup`);
+  } catch { /* */ }
   try {
     await env.DB.prepare(
       `INSERT INTO registrations (event_id, member_id, name, email, phone, gender, status, created_at)
@@ -197,6 +223,37 @@ export async function eventJoin(env, req, member) {
     ).bind(eventId, member?.id || null, name, email, phone, member?.gender || null, Date.now()).run();
   } catch { /* */ }
   return redirect(`/event/one/${eventId}?joined=1`);
+}
+
+// 取消報名（僅會員）
+export async function eventCancel(env, req, member) {
+  const form = await req.formData();
+  const eventId = parseInt(form.get('event_id'), 10);
+  if (!eventId) return redirect('/user/events');
+  if (!member) return redirect(`/event/one/${eventId}#login`);
+  try {
+    await env.DB.prepare('UPDATE registrations SET status=0 WHERE event_id=?1 AND member_id=?2 AND status=1')
+      .bind(eventId, member.id).run();
+  } catch { /* */ }
+  return redirect(`/event/one/${eventId}?joined=cancel`);
+}
+
+// 我的活動：會員已報名的活動
+export async function myEvents(env, member) {
+  if (!member) return redirect('/#login');
+  let rows = [];
+  try {
+    rows = await all(env, `SELECT ${EVENT_COLS.split(', ').map((c) => 'e.' + c).join(', ')}, r.created_at AS joined_at
+      FROM registrations r JOIN events e ON e.id = r.event_id
+      WHERE r.member_id=?1 AND r.status=1 ORDER BY r.created_at DESC`, member.id);
+  } catch { /* */ }
+  const grid = rows.length
+    ? `<div class="egrid">${rows.map(eventCard).join('')}</div>`
+    : `${empty('你還沒有報名任何活動，快去看看有哪些有趣的主題吧！')}<div style="text-align:center;margin-top:24px"><a class="btn" href="/event">逛逛主題活動</a></div>`;
+  const body = `
+  <section class="phead"><h1>我的活動</h1><p>${esc(member.name || member.email)}，你已報名 ${rows.length} 個活動</p></section>
+  <section class="blk"><div class="wrap">${grid}</div></section>`;
+  return layout(env, { title: '我的活動', body, member });
 }
 
 // ─── 許願池 ─────────────────────────────────────────────

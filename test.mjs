@@ -116,6 +116,29 @@ r = await req('POST', '/wish', { form: { content: '想要調酒體驗課', name:
 ok('許願導向 ok', r.status === 302 && r.loc.includes('ok=1'));
 ok('許願寫入 DB', db.prepare('SELECT COUNT(*) n FROM wishes').get().n >= 1);
 
+console.log('\n登入後狀態 / 會員報名：');
+// 此時 cookie 為已登入的「老會員」
+r = await req('GET', '/');
+ok('登入後導覽列顯示登出、不顯示註冊', r.text.includes('/user/logout') && !r.text.includes('免費註冊'));
+{
+  const res = await worker.fetch(new Request('http://localhost/', { headers: { cookie: cookieHeader() } }), env, {});
+  ok('頁面不可被快取（private, no-store）', res.headers.get('cache-control') === 'private, no-store', res.headers.get('cache-control'));
+}
+r = await req('GET', '/event/one/3?joined=1');
+ok('報名成功訊息', r.text.includes('報名成功'));
+ok('已報名顯示取消按鈕', r.text.includes('你已報名此活動') && r.text.includes('/event/cancel'));
+r = await req('POST', '/event/join', { form: { event_id: '3' } });
+ok('重複報名擋下', r.loc.includes('joined=dup'));
+ok('同會員同活動只有一筆', db.prepare(`SELECT COUNT(*) n FROM registrations r JOIN members m ON m.id=r.member_id WHERE m.email='old@ex.com' AND r.event_id=3 AND r.status=1`).get().n === 1);
+r = await req('GET', '/user/events');
+ok('我的活動列出已報名活動', r.status === 200 && r.text.includes('/event/one/3'));
+r = await req('POST', '/event/cancel', { form: { event_id: '3' } });
+ok('取消報名導向', r.loc.includes('joined=cancel'));
+r = await req('GET', '/user/events');
+ok('取消後我的活動變空', !r.text.includes('/event/one/3'));
+r = await req('GET', '/user/events', { useCookie: false });
+ok('未登入看我的活動導回登入', r.status === 302);
+
 console.log('\n後台 + 匯入 API：');
 r = await req('GET', '/admin', { useCookie: false });
 ok('後台無 token 擋下 401', r.status === 401);
@@ -138,6 +161,15 @@ ra = await req('GET','/article/'+db.prepare('SELECT id FROM articles LIMIT 1').g
 ok('文章內頁 200 顯示內文', ra.status===200 && ra.text.includes('/media/blog/x.jpg'));
 ra = await req('GET','/article?cat=news');
 ok('文章分類篩選', ra.status===200 && !ra.text.includes('測試好文'));
+
+console.log('\n活動自動配圖：');
+db.prepare(`INSERT INTO articles (legacy_id,title,category,excerpt,content,cover,published_at,status,created_at,updated_at) VALUES (12,'手作香氛蠟燭花絮','blooper','大家一起做乾燥花蠟燭','','/media/blog/candle.jpg',1700000000000,1,0,0)`).run();
+db.prepare(`INSERT INTO articles (legacy_id,title,category,excerpt,content,cover,published_at,status,created_at,updated_at) VALUES (13,'保齡球競賽','blooper','保齡球PK','','/media/blog/bowling.jpg',1700000000000,1,0,0)`).run();
+ra = await req('POST', '/admin/event/save?token=test-token', { form: { title: '夏日手作乾燥花香蠟燭', category: 'craft', status: '1' }, useCookie: false });
+ok('沒填主圖自動配到最接近的圖', db.prepare(`SELECT image FROM events WHERE title='夏日手作乾燥花香蠟燭'`).get()?.image === '/media/blog/candle.jpg',
+  db.prepare(`SELECT image FROM events WHERE title='夏日手作乾燥花香蠟燭'`).get()?.image);
+ra = await req('POST', '/admin/event/save?token=test-token', { form: { title: '保齡球大賽', category: 'game', status: '1', image: 'https://x/y.jpg' }, useCookie: false });
+ok('有填主圖則不覆蓋', db.prepare(`SELECT image FROM events WHERE title='保齡球大賽'`).get()?.image === 'https://x/y.jpg');
 ra = await req('POST','/admin/import?token=test-token',{json:{table:'articles',rows:[{legacy_id:22,title:'匯入文','category:':'news',category:'news',status:1,content:'<p>hi</p>'}]},useCookie:false});
 ok('文章匯入 API', ra.status===200 && JSON.parse(ra.text).inserted===1, ra.text);
 

@@ -237,6 +237,7 @@ function navbar(env, active, member) {
     .join('');
   const right = member
     ? `<span class="who">Hi, ${esc(member.name || member.email)}${member.is_vip ? ' 👑' : ''}</span>
+       <a class="link-btn" href="/user/events">我的活動</a>
        <a class="link-btn" href="/user/logout">登出</a>`
     : `<button class="link-btn" onclick="eros.open('login')">登入</button>
        <button class="btn" style="padding:8px 22px" onclick="eros.open('register')">免費註冊</button>`;
@@ -255,7 +256,7 @@ function modals(env, member) {
       <h2 style="font-size:20px">選單</h2>
       <nav style="display:flex;flex-direction:column;gap:14px;margin-top:18px;font-weight:600">
         <a href="/event">主題活動</a><a href="/article">專題文章</a>
-        <a href="/wish">活動許願池</a><a href="/contact">聯絡我們</a><a href="/user/logout">登出</a>
+        <a href="/wish">活動許願池</a><a href="/contact">聯絡我們</a><a href="/user/events">我的活動</a><a href="/user/logout">登出</a>
       </nav></div></dialog>`;
   }
   return `
@@ -372,7 +373,8 @@ ${modals(env, member)}
     status,
     headers: {
       'content-type': 'text/html; charset=utf-8',
-      'cache-control': status === 200 ? 'public, max-age=30, s-maxage=120' : 'no-store',
+      // 頁面內容依登入狀態不同（導覽列、報名狀態），不可被瀏覽器/CDN 快取，否則登入後仍看到未登入畫面
+      'cache-control': 'private, no-store',
     },
   });
 }

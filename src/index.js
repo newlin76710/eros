@@ -1,7 +1,7 @@
 // Cloudflare Worker 進入點：路由分派。
 import { currentMember } from './auth.js';
 import {
-  home, eventList, eventOne, eventJoin, wishPage, wishSubmit,
+  home, eventList, eventOne, eventJoin, eventCancel, myEvents, wishPage, wishSubmit,
   contactPage, conditionPage, login, register, logout, fbLogin, fbCallback,
   articleList, articleOne,
 } from './pages.js';
@@ -41,9 +41,11 @@ export default {
       if (pathname === '/event') return await eventList(env, url, member);
 
       const one = pathname.match(/^\/event\/one\/(\d+)$/);
-      if (one) return await eventOne(env, parseInt(one[1], 10), member);
+      if (one) return await eventOne(env, parseInt(one[1], 10), member, url);
 
       if (pathname === '/event/join' && method === 'POST') return await eventJoin(env, req, member);
+      if (pathname === '/event/cancel' && method === 'POST') return await eventCancel(env, req, member);
+      if (pathname === '/user/events') return await myEvents(env, member);
 
       if (pathname === '/article') return await articleList(env, url, member);
       const art = pathname.match(/^\/article\/(\d+)$/);

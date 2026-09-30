@@ -3,6 +3,7 @@
 import { REAL_CATEGORIES, categoryName } from './config.js';
 import { esc } from './render.js';
 import { isAdmin, cookie } from './auth.js';
+import { buildIndex, pickImage } from './match.js';
 
 const all = async (env, sql, ...a) => (await env.DB.prepare(sql).bind(...a).all()).results;
 const first = (env, sql, ...a) => env.DB.prepare(sql).bind(...a).first();
@@ -112,6 +113,14 @@ export async function handleAdmin(env, req, url) {
       summary: f.get('summary') || '', intro: f.get('intro') || '', notice: f.get('notice') || '',
       image: f.get('image') || '', status: f.get('status') ? 1 : 0,
     };
+    // 沒填主圖 → 從專題文章圖片中挑情境最接近的一張
+    if (!fields.image && fields.title) {
+      try {
+        const arts = await all(env, "SELECT id,title,excerpt,cover,category FROM articles WHERE status=1 AND cover LIKE '/media/blog/%'");
+        const used = new Map((await all(env, "SELECT image, COUNT(*) n FROM events WHERE image<>'' GROUP BY image")).map((r) => [r.image, r.n]));
+        fields.image = pickImage(fields, buildIndex(arts), used) || '';
+      } catch { /* 配圖失敗不影響儲存 */ }
+    }
     if (id) {
       await env.DB.prepare(`UPDATE events SET title=?1,category=?2,is_vip=?3,date_text=?4,event_date=?5,city=?6,price_m=?7,price_f=?8,summary=?9,intro=?10,notice=?11,image=?12,status=?13,updated_at=?14 WHERE id=?15`)
         .bind(fields.title, fields.category, fields.is_vip, fields.date_text, fields.event_date, fields.city, fields.price_m, fields.price_f, fields.summary, fields.intro, fields.notice, fields.image, fields.status, now, id).run();
@@ -149,7 +158,7 @@ export async function handleAdmin(env, req, url) {
         <div><label>男生費用</label><input type="number" name="price_m" value="${e.price_m || 0}"></div>
         <div><label>女生費用</label><input type="number" name="price_f" value="${e.price_f || 0}"></div>
       </div>
-      <label>主圖 URL</label><input name="image" value="${esc(e.image || '')}" placeholder="https://...">
+      <label>主圖 URL</label><input name="image" value="${esc(e.image || '')}" placeholder="留空則自動從專題文章圖片挑選情境最接近的一張">
       <label>摘要</label><textarea name="summary" rows="2">${esc(e.summary || '')}</textarea>
       <label>活動內容（可用 HTML）</label><textarea name="intro" rows="6">${esc(e.intro || '')}</textarea>
       <label>注意事項（可用 HTML）</label><textarea name="notice" rows="4">${esc(e.notice || '')}</textarea>
