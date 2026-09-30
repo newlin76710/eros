@@ -9,8 +9,8 @@
 | D1 資料庫 | `eros`（id `25b2e03f-f7ac-4649-885d-b9ab01102999`） |
 | 會員 | ✅ 已匯入 **39,400 筆**（舊庫 39,532，略過無 email 132 筆） |
 | 活動 | ✅ 已匯入 **397 筆** |
-| 專題文章圖片 | ✅ 已下載 **1,327 張**並部署到本站 `/media/blog/…` |
-| 專題文章文字 | ⏳ **尚未寫入 D1**（今天 D1 免費寫入額度用完，被擋） |
+| 專題文章圖片 | ✅ **1,328 張**已部署到本站 `/media/blog/…` |
+| 專題文章文字 | ✅ **475 篇**已寫入 D1（2026-09-30 補灌完成） |
 
 **後台**：https://eros.ek21.workers.dev/admin?token=`KHLk_r_Dp0XX-FF8SQQ6wXVk8uuii_KC`
 （此 token 就是 `ADMIN_TOKEN` secret，也存在 `C:\tmp\admin_token.txt`）
