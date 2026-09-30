@@ -96,6 +96,9 @@ ok('登入成功導向', r.status === 302);
 ok('登入拿到 cookie', !!cookies['eros_sid']);
 r = await req('POST', '/user/login', { form: { email: 'test@example.com', password: 'WRONG' }, useCookie: false });
 ok('錯誤密碼被拒', r.text.includes('登入失敗'));
+db.prepare(`INSERT INTO members (email,name,password_hash,source,status,created_at,updated_at) VALUES ('off@ex.com','停用者','md5$900150983cd24fb0d6963f7d28e17f72','legacy',0,0,0)`).run();
+r = await req('POST', '/user/login', { form: { email: 'off@ex.com', password: 'abc' }, useCookie: false });
+ok('停用帳號登入顯示停用訊息', r.text.includes('帳號已停用'));
 
 console.log('\n舊 MD5 會員相容登入 + 升級：');
 // 直接塞一個 MD5 舊會員（密碼 abc → md5）

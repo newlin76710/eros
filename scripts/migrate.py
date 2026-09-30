@@ -140,7 +140,8 @@ def migrate_members(s, tok, site, token):
                 "intro": d["text"] or None, "avatar": d["img"] or None, "source": d["source"] or None,
                 "location": d["location"] or None, "contact_status": d["contact_status"] or None,
                 "is_vip": 0,
-                "status": 1 if str(d["status"]) == "1" else 0,
+                # 舊站 0＝未驗證、1＝正常，兩者都可登入；-1/2/3/4（作廢等）才停用
+                "status": 1 if str(d["status"]) in ("0", "1") else 0,
                 "created_at": to_ms(d["time"]), "updated_at": to_ms(d["time"]),
             })
         res = post_import(site, token, "members", out, truncate=(first and "--truncate" in sys.argv))

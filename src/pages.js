@@ -410,10 +410,11 @@ export async function login(env, req) {
   const form = await req.formData();
   const email = (form.get('email') || '').trim().toLowerCase();
   const password = form.get('password') || '';
-  const m = await first(env, `SELECT * FROM members WHERE email=?1 AND status=1`, email);
+  const m = await first(env, `SELECT * FROM members WHERE email=?1`, email);
   if (!m || !(await verifyPassword(password, m.password_hash))) {
     return errorPage(env, '登入失敗', '信箱或密碼錯誤，請再試一次。', '/', 'login');
   }
+  if (m.status !== 1) return disabledPage(env);
   // 舊 MD5 密碼登入成功→升級為 PBKDF2
   if (isLegacyHash(m.password_hash)) {
     try {
@@ -543,12 +544,18 @@ export async function fbCallback(env, req, url) {
       try { await env.DB.prepare('UPDATE members SET fb_account=?1, updated_at=?2 WHERE id=?3').bind(fbId, now, m.id).run(); } catch { /* */ }
     }
 
+    // 停用帳號不建立登入（否則 session 建了但 currentMember 讀不到，畫面看起來像沒登入）
+    if (m.status !== undefined && m.status !== 1) return disabledPage(env);
+
     const c = await createSession(env, m.id, req.headers.get('user-agent') || '');
     return redirect('/', [c, cookie('eros_fbstate', '', { maxAge: 0 })]);
   } catch (e) {
     return errorPage(env, 'Facebook 登入', '錯誤：' + (e && e.message ? e.message : String(e)), '/', 'login');
   }
 }
+
+const disabledPage = (env) => errorPage(env, '帳號已停用',
+  `此帳號目前為停用狀態，無法登入。如需恢復，請來信 ${env.CONTACT_EMAIL || 'eros@ek21.com'} 與我們聯繫。`, '/');
 
 // 簡單的訊息頁（含返回按鈕 + 自動開啟登入/註冊 modal）
 function errorPage(env, title, msg, back = '/', openTab = '') {
